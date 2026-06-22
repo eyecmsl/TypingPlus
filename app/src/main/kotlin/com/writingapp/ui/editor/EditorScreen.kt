@@ -131,7 +131,7 @@ fun EditorScreen(
     val selectedText = if (selection.start != selection.end)
         currentContent.substring(minOf(selection.start, selection.end), maxOf(selection.start, selection.end))
     else null
-    viewModel.setSelectedText(selectedText)
+    viewModel.selectedText = selectedText
 
     LaunchedEffect(currentContent) {
         copilotViewModel.updateDocumentContext(currentContent)

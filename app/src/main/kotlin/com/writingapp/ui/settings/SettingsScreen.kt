@@ -48,9 +48,9 @@ fun SettingsScreen(
     var apiKey by remember(config) { mutableStateOf(config.apiKey) }
     var model by remember(config) { mutableStateOf(config.model) }
     var systemPrompt by remember(config) { mutableStateOf(config.systemPrompt) }
-    var temperature by remember(config) { mutableStateOf(config.temperature) }
+    var temperature by remember(config) { mutableStateOf(config.temperature.toFloat()) }
     var maxTokens by remember(config) { mutableStateOf(config.maxTokens.toString()) }
-    var topP by remember(config) { mutableStateOf(config.topP) }
+    var topP by remember(config) { mutableStateOf(config.topP.toFloat()) }
     var ghostTextEnabled by remember(config) { mutableStateOf(config.ghostTextEnabled) }
 
     Scaffold(
@@ -198,9 +198,9 @@ fun SettingsScreen(
                             apiKey = apiKey,
                             model = model,
                             systemPrompt = systemPrompt,
-                            temperature = temperature,
+                            temperature = temperature.toDouble(),
                             maxTokens = maxTokens.toIntOrNull() ?: 4096,
-                            topP = topP,
+                            topP = topP.toDouble(),
                             ghostTextEnabled = ghostTextEnabled
                         )
                     )

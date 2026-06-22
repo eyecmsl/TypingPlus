@@ -397,11 +397,6 @@ class EditorViewModel(
         private set
 
     var selectedText by mutableStateOf<String?>(null)
-        private set
-
-    fun setSelectedText(text: String?) {
-        selectedText = text
-    }
 
     fun applySuggestionPreview(modified: String, original: String) {
         originalTextBeforeSuggestion = textFieldValue.text
