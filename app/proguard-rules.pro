@@ -1,0 +1,2 @@
+-keep class com.writingapp.data.remote.dto.** { *; }
+-keep class com.writingapp.data.local.db.entities.** { *; }
