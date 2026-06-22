@@ -2,17 +2,18 @@ package com.writingapp.ui.editor
 
 import android.content.Context
 import android.content.Intent
-import android.print.PrintAttributes
-import android.print.PrintDocumentAdapter
-import android.print.PrintManager
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.pdf.PdfDocument
+import android.net.Uri
 import androidx.core.content.FileProvider
 import java.io.File
+import java.io.FileOutputStream
 
 object MarkdownExport {
 
-    fun toHtml(markdown: String): String {
+    fun toHtml(markdown: String, title: String = ""): String {
         val escaped = markdown
             .replace("&", "&amp;")
             .replace("<", "&lt;")
@@ -31,107 +32,60 @@ object MarkdownExport {
         html.append("blockquote{border-left:4px solid #6750a4;margin:0;padding:0 16px;color:#49454f}")
         html.append("img{max-width:100%;height:auto;border-radius:8px}")
         html.append("hr{border:none;border-top:1px solid #e0e0e0;margin:24px 0}")
-        html.append("table{border-collapse:collapse;width:100%}")
-        html.append("th,td{border:1px solid #e0e0e0;padding:8px;text-align:left}")
         html.append("</style></head><body>")
+        if (title.isNotBlank()) {
+            html.append("<h1>").append(escapedTitle(title)).append("</h1>")
+        }
 
         var inCodeBlock = false
         var inList = false
         var isOrderedList = false
 
-        for (i in lines.indices) {
-            val line = lines[i]
-
-            if (line.startsWith("```")) {
-                if (inCodeBlock) {
-                    html.append("</code></pre>\n")
-                    inCodeBlock = false
-                } else {
-                    html.append("<pre><code>")
-                    inCodeBlock = true
+        for (line in lines) {
+            when {
+                line.startsWith("```") -> {
+                    if (inCodeBlock) { html.append("</code></pre>\n"); inCodeBlock = false }
+                    else { html.append("<pre><code>"); inCodeBlock = true }
                 }
-                continue
-            }
-
-            if (inCodeBlock) {
-                html.append(line).append("\n")
-                continue
-            }
-
-            if (line.matches(Regex("^#{1,6}\\s.*"))) {
-                val level = line.takeWhile { it == '#' }.length
-                val content = line.drop(level).trim()
-                html.append("<h$level>$content</h$level>\n")
-                continue
-            }
-
-            if (line.matches(Regex("^>\\s.*"))) {
-                val content = line.drop(1).trim()
-                html.append("<blockquote><p>$content</p></blockquote>\n")
-                continue
-            }
-
-            if (line.matches(Regex("^[-*+]\\s.*"))) {
-                if (!inList || isOrderedList) {
-                    if (isOrderedList) html.append("</ol>\n")
-                    html.append("<ul>\n")
-                    inList = true
-                    isOrderedList = false
+                inCodeBlock -> html.append(line).append("\n")
+                line.matches(Regex("^#{1,6}\\s.*")) -> {
+                    val level = line.takeWhile { it == '#' }.length
+                    html.append("<h$level>").append(line.drop(level).trim()).append("</h$level>\n")
                 }
-                val content = line.drop(2).trim()
-                html.append("<li>$content</li>\n")
-                continue
-            }
-
-            if (line.matches(Regex("^\\d+\\.\\s.*"))) {
-                if (!inList || !isOrderedList) {
-                    if (inList && !isOrderedList) html.append("</ul>\n")
-                    html.append("<ol>\n")
-                    inList = true
-                    isOrderedList = true
+                line.matches(Regex("^>\\s.*")) -> html.append("<blockquote><p>").append(line.drop(1).trim()).append("</p></blockquote>\n")
+                line.matches(Regex("^[-*+]\\s.*")) -> {
+                    if (!inList || isOrderedList) { if (isOrderedList) html.append("</ol>\n"); html.append("<ul>\n"); inList = true; isOrderedList = false }
+                    html.append("<li>").append(line.drop(2).trim()).append("</li>\n")
                 }
-                val content = line.substringAfter(". ").trim()
-                html.append("<li>$content</li>\n")
-                continue
+                line.matches(Regex("^\\d+\\.\\s.*")) -> {
+                    if (!inList || !isOrderedList) { if (inList && !isOrderedList) html.append("</ul>\n"); html.append("<ol>\n"); inList = true; isOrderedList = true }
+                    html.append("<li>").append(line.substringAfter(". ").trim()).append("</li>\n")
+                }
+                inList && line.isBlank() -> {
+                    if (isOrderedList) html.append("</ol>\n") else html.append("</ul>\n")
+                    inList = false; html.append("<br>\n")
+                }
+                line.matches(Regex("^---+\$")) -> html.append("<hr>\n")
+                line.isBlank() -> html.append("<br>\n")
+                else -> html.append("<p>").append(inlineHtml(line)).append("</p>\n")
             }
-
-            if (inList && line.isBlank()) {
-                if (isOrderedList) html.append("</ol>\n") else html.append("</ul>\n")
-                inList = false
-                html.append("<br>\n")
-                continue
-            }
-
-            if (line.matches(Regex("^---+\$"))) {
-                html.append("<hr>\n")
-                continue
-            }
-
-            if (line.isBlank()) {
-                html.append("<br>\n")
-                continue
-            }
-
-            html.append("<p>").append(inlineHtml(line)).append("</p>\n")
         }
 
         if (inCodeBlock) html.append("</code></pre>\n")
-        if (inList) {
-            if (isOrderedList) html.append("</ol>\n") else html.append("</ul>\n")
-        }
+        if (inList) { if (isOrderedList) html.append("</ol>\n") else html.append("</ul>\n") }
 
         html.append("</body></html>")
         return html.toString()
     }
 
+    private fun escapedTitle(title: String): String {
+        return title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    }
+
     private fun inlineHtml(text: String): String {
         var result = text
-        result = result.replace(Regex("""!\[([^\]]*)\]\(([^)]*)\)""")) { match ->
-            """<img src="${match.groupValues[2]}" alt="${match.groupValues[1]}">"""
-        }
-        result = result.replace(Regex("""\[([^\]]*)\]\(([^)]*)\)""")) { match ->
-            """<a href="${match.groupValues[2]}">${match.groupValues[1]}</a>"""
-        }
+        result = result.replace(Regex("""!\[([^\]]*)\]\(([^)]*)\)""")) { """<img src="${it.groupValues[2]}" alt="${it.groupValues[1]}">""" }
+        result = result.replace(Regex("""\[([^\]]*)\]\(([^)]*)\)""")) { """<a href="${it.groupValues[2]}">${it.groupValues[1]}</a>""" }
         result = result.replace(Regex("""\*\*\*(.+?)\*\*\*""")) { "<strong><em>${it.groupValues[1]}</em></strong>" }
         result = result.replace(Regex("""\*\*(.+?)\*\*""")) { "<strong>${it.groupValues[1]}</strong>" }
         result = result.replace(Regex("""\*(.+?)\*""")) { "<em>${it.groupValues[1]}</em>" }
@@ -141,29 +95,105 @@ object MarkdownExport {
     }
 
     fun shareAsHtml(context: Context, title: String, markdown: String) {
-        val html = toHtml(markdown)
+        val html = toHtml(markdown, title)
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/html"
             putExtra(Intent.EXTRA_SUBJECT, title)
             putExtra(Intent.EXTRA_TEXT, html)
             putExtra(Intent.EXTRA_HTML_TEXT, html)
         }
-        context.startActivity(Intent.createChooser(intent, "Export as HTML"))
+        val chooser = Intent.createChooser(intent, "Export as HTML")
+        context.startActivity(chooser)
     }
 
-    fun exportAsPdf(context: Context, title: String, markdown: String) {
-        val html = toHtml(markdown)
-        val webView = WebView(context)
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String) {
-                val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
-                val attributes = PrintAttributes.Builder()
-                    .setMediaSize(PrintAttributes.MediaSize.NA_LETTER)
-                    .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
-                    .build()
-                printManager.print(title, view.createPrintDocumentAdapter(title), attributes)
+    fun exportAsPdf(context: Context, title: String, markdown: String): Result<Uri> {
+        return try {
+            val document = PdfDocument()
+            val pageInfo = PdfDocument.PageInfo.Builder(612, 792, 1).create()
+            val page = document.startPage(pageInfo)
+            val canvas: Canvas = page.canvas
+
+            val titlePaint = Paint().apply {
+                typeface = Typeface.DEFAULT_BOLD
+                textSize = 24f
+                color = android.graphics.Color.parseColor("#1C1B1F")
+            }
+            val bodyPaint = Paint().apply {
+                textSize = 14f
+                color = android.graphics.Color.parseColor("#1C1B1F")
+                isAntiAlias = true
+            }
+
+            var y = 50f
+            val margin = 50f
+            val maxWidth = 512f
+
+            if (title.isNotBlank()) {
+                canvas.drawText(title, margin, y, titlePaint)
+                y += 40f
+            }
+
+            val lines = markdown.split("\n")
+            for (line in lines) {
+                if (y > 750f) break
+                if (line.isBlank()) {
+                    y += 20f
+                    continue
+                }
+                val text = line.replace(Regex("[#*_`~\\[\\]()>|\\-]"), "")
+                if (text.isNotBlank()) {
+                    val wrappedLines = wrapText(text, bodyPaint, maxWidth)
+                    for (wl in wrappedLines) {
+                        if (y > 750f) break
+                        canvas.drawText(wl, margin, y, bodyPaint)
+                        y += 22f
+                    }
+                } else {
+                    y += 10f
+                }
+            }
+
+            document.finishPage(page)
+
+            val file = File(context.cacheDir, "${title.take(30).replace(Regex("[^a-zA-Z0-9]"), "_")}.pdf")
+            FileOutputStream(file).use { out -> document.writeTo(out) }
+            document.close()
+
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            Result.success(uri)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun wrapText(text: String, paint: Paint, maxWidth: Float): List<String> {
+        val words = text.split(" ")
+        val lines = mutableListOf<String>()
+        val currentLine = StringBuilder()
+        for (word in words) {
+            val testLine = if (currentLine.isEmpty()) word else "$currentLine $word"
+            if (paint.measureText(testLine) <= maxWidth) {
+                if (currentLine.isNotEmpty()) currentLine.append(" ")
+                currentLine.append(word)
+            } else {
+                if (currentLine.isNotEmpty()) lines.add(currentLine.toString())
+                currentLine.clear()
+                currentLine.append(word)
             }
         }
-        webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+        if (currentLine.isNotEmpty()) lines.add(currentLine.toString())
+        return lines.ifEmpty { listOf(text) }
+    }
+
+    fun exportToFile(context: Context, title: String, markdown: String): Result<Uri> {
+        return try {
+            val md = "# $title\n\n$markdown"
+            val file = File(context.getExternalFilesDir(null), "${title.take(30).replace(Regex("[^a-zA-Z0-9]"), "_")}.md")
+            file.writeText(md)
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            Result.success(uri)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

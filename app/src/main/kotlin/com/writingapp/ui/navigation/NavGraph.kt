@@ -3,6 +3,12 @@ package com.writingapp.ui.navigation
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -10,45 +16,39 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.writingapp.ui.assistant.AssistantScreen
-import com.writingapp.ui.dashboard.DashboardScreen
 import com.writingapp.ui.editor.EditorScreen
 import com.writingapp.ui.rulebook.RulebookScreen
-import com.writingapp.ui.search.SearchScreen
-import com.writingapp.ui.settings.SettingsScreen
 import com.writingapp.ui.wordline.WordlineScreen
 
 @Composable
 fun NavGraph(navController: NavHostController) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Dashboard.route,
-        enterTransition = { enterFromRight },
-        exitTransition = { exitToLeft },
-        popEnterTransition = { enterFromLeft },
-        popExitTransition = { exitToRight }
+        startDestination = Screen.Main.route
     ) {
-        composable(Screen.Dashboard.route) {
-            DashboardScreen(
-                onDocumentClick = { docId ->
+        composable(Screen.Main.route) {
+            MainScreen(
+                onNavigateToEditor = { docId ->
                     navController.navigate(Screen.Editor.createRoute(docId))
                 },
-                onNewDocument = { docId ->
-                    navController.navigate(Screen.Editor.createRoute(docId))
+                onNavigateToRulebook = {
+                    navController.navigate(Screen.Rulebook.route)
                 },
-                onSearchClick = {
-                    navController.navigate(Screen.Search.route)
+                onNavigateToWordline = {
+                    navController.navigate(Screen.Wordline.route)
                 },
-                onRulebookClick = { navController.navigate(Screen.Rulebook.route) },
-                onWordlineClick = { navController.navigate(Screen.Wordline.route) },
-                onSettingsClick = { navController.navigate(Screen.Settings.route) }
+                onNavigateToAssistant = { docId ->
+                    navController.navigate(Screen.Assistant.createRoute(docId))
+                },
+                rootNavController = navController
             )
         }
 
         composable(
             route = Screen.Editor.route,
             arguments = listOf(navArgument("documentId") { type = NavType.LongType }),
-            enterTransition = { scaleIn },
-            exitTransition = { scaleOut }
+            enterTransition = { scaleIn(tween(300)) + fadeIn(tween(300)) },
+            exitTransition = { scaleOut(tween(300)) + fadeOut(tween(300)) }
         ) { backStackEntry ->
             val documentId = backStackEntry.arguments?.getLong("documentId") ?: 0L
             EditorScreen(
@@ -63,8 +63,8 @@ fun NavGraph(navController: NavHostController) {
         composable(
             route = Screen.Assistant.route,
             arguments = listOf(navArgument("documentId") { type = NavType.LongType }),
-            enterTransition = { enterFromBottom },
-            exitTransition = { exitToBottom }
+            enterTransition = { slideInVertically(tween(300)) { it } + fadeIn(tween(300)) },
+            exitTransition = { slideOutVertically(tween(300)) { it } + fadeOut(tween(300)) }
         ) { backStackEntry ->
             val documentId = backStackEntry.arguments?.getLong("documentId") ?: 0L
             AssistantScreen(
@@ -79,23 +79,6 @@ fun NavGraph(navController: NavHostController) {
 
         composable(Screen.Wordline.route) {
             WordlineScreen(onBack = { navController.popBackStack() })
-        }
-
-        composable(Screen.Search.route) {
-            SearchScreen(
-                onBack = { navController.popBackStack() },
-                onDocumentClick = { docId ->
-                    navController.navigate(Screen.Editor.createRoute(docId))
-                }
-            )
-        }
-
-        composable(
-            Screen.Settings.route,
-            enterTransition = { fadeIn(animationSpec = tween(300)) },
-            exitTransition = { fadeOut(animationSpec = tween(300)) }
-        ) {
-            SettingsScreen(onBack = { navController.popBackStack() })
         }
     }
 }

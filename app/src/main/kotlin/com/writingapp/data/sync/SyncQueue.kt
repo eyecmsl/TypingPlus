@@ -1,6 +1,7 @@
 package com.writingapp.data.sync
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -84,7 +85,8 @@ class SyncQueue(private val context: Context, private val scope: CoroutineScope 
                         saveQueue()
                     }
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("SyncQueue", "Failed to process change ${change.id}: ${e.message}")
             }
         }
 

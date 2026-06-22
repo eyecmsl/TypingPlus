@@ -36,7 +36,7 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun WritingAppTheme(
+fun TypingPlusTheme(
     darkTheme: Boolean = false,
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit

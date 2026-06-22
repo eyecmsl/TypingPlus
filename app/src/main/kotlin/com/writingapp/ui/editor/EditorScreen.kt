@@ -1,13 +1,10 @@
 package com.writingapp.ui.editor
 
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,19 +17,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.automirrored.filled.NavigateBefore
+import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Edit
@@ -50,7 +47,6 @@ import androidx.compose.material.icons.filled.LooksOne
 import androidx.compose.material.icons.filled.LooksTwo
 import androidx.compose.material.icons.filled.NavigateNext
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.Visibility
@@ -58,25 +54,25 @@ import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -86,16 +82,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.writingapp.ui.components.MarkdownDisplay
+import com.writingapp.ui.components.PermissionHelper
+import com.writingapp.ui.components.rememberPermissionLauncher
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,12 +101,29 @@ fun EditorScreen(
     onAiAssistant: () -> Unit,
     viewModel: EditorViewModel = koinViewModel()
 ) {
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     var isPreview by remember { mutableStateOf(false) }
     var showStats by remember { mutableStateOf(false) }
-    var showTagEditor by remember { mutableStateOf(false) }
-    var editTags by remember { mutableStateOf("") }
-    val drawerState = rememberDrawerState(initialValue = androidx.compose.material3.DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
+    var showExportMenu by remember { mutableStateOf(false) }
+
+    val safFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch { snackbarHostState.showSnackbar("Folder selected for file browsing") }
+        }
+    }
+
+    val permissionLauncher = rememberPermissionLauncher(
+        onGranted = {
+            scope.launch { snackbarHostState.showSnackbar("Storage access granted") }
+        },
+        onDenied = {
+            scope.launch { snackbarHostState.showSnackbar("Storage permission denied — file browsing limited") }
+        }
+    )
 
     LaunchedEffect(documentId) {
         viewModel.loadDocument(documentId)
@@ -131,144 +144,166 @@ fun EditorScreen(
         )
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.8f)) {
-                Text("File Explorer", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(16.dp))
-                HorizontalDivider()
-                Text("Scanning storage for .md files...", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(16.dp))
-            }
-        }
-    ) {
-        Scaffold(
-            topBar = {
-                Column {
-                    TopAppBar(
-                        title = {
-                            TextField(
-                                value = viewModel.title,
-                                onValueChange = { viewModel.updateTitle(it) },
-                                singleLine = true,
-                                textStyle = MaterialTheme.typography.titleMedium,
-                                colors = TextFieldDefaults.colors(
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    focusedContainerColor = MaterialTheme.colorScheme.surface
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        },
-                        navigationIcon = {
-                            Row {
-                                IconButton(onClick = onBack) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                                }
-                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                    Icon(Icons.Outlined.FolderOpen, contentDescription = "File Explorer")
-                                }
-                            }
-                        },
-                        actions = {
-                            IconButton(onClick = { viewModel.togglePin() }) {
-                                Icon(
-                                    if (viewModel.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                                    contentDescription = "Pin",
-                                    tint = if (viewModel.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            IconButton(onClick = { showStats = !showStats }) {
-                                Icon(Icons.Default.BarChart, contentDescription = "Stats")
-                            }
-                            IconButton(onClick = { viewModel.toggleFindReplace() }) {
-                                Icon(Icons.Default.FindReplace, contentDescription = "Find & Replace")
-                            }
-                            var showExportMenu by remember { mutableStateOf(false) }
-                            IconButton(onClick = { showExportMenu = true }) {
-                                Icon(Icons.Default.Share, contentDescription = "Export")
-                            }
-                            androidx.compose.material3.DropdownMenu(expanded = showExportMenu, onDismissRequest = { showExportMenu = false }) {
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text("Export as HTML") },
-                                    onClick = { showExportMenu = false },
-                                    leadingIcon = { Icon(Icons.Default.Code, contentDescription = null) }
-                                )
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text("Export as PDF") },
-                                    onClick = { showExportMenu = false },
-                                    leadingIcon = { Icon(Icons.Outlined.PictureAsPdf, contentDescription = null) }
-                                )
-                            }
-                            IconButton(onClick = onAiAssistant) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = "AI Assistant")
-                            }
-                            IconButton(onClick = { isPreview = !isPreview }) {
-                                Icon(
-                                    if (isPreview) Icons.Default.Edit else Icons.Default.Visibility,
-                                    contentDescription = if (isPreview) "Edit" else "Preview"
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-                    )
-
-                    AnimatedVisibility(visible = viewModel.showFindReplace) {
-                        FindReplaceBar(viewModel = viewModel)
-                    }
-
-                    AnimatedVisibility(visible = showStats) {
-                        StatsBar(stats = viewModel.stats)
-                    }
-
-                    AnimatedVisibility(visible = showTagEditor) {
-                        TagEditorBar(
-                            currentTags = viewModel.stats.toString(),
-                            onSave = { tags -> viewModel.setTags(tags.split(",").map { it.trim() }.filter { it.isNotBlank() }); showTagEditor = false },
-                            onDismiss = { showTagEditor = false }
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            Column {
+                TopAppBar(
+                    title = {
+                        TextField(
+                            value = viewModel.title,
+                            onValueChange = { viewModel.updateTitle(it) },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.titleMedium,
+                            colors = TextFieldDefaults.colors(
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                focusedContainerColor = MaterialTheme.colorScheme.surface
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         )
-                    }
+                    },
+                    navigationIcon = {
+                        Row {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+                            IconButton(onClick = {
+                                if (PermissionHelper.hasStoragePermission(context)) {
+                                    safFilePicker.launch(null)
+                                } else {
+                                    permissionLauncher.launch(PermissionHelper.getRequiredPermissions())
+                                }
+                            }) {
+                                Icon(Icons.Outlined.FolderOpen, contentDescription = "Open file browser")
+                            }
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { viewModel.togglePin() }) {
+                            Icon(
+                                if (viewModel.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                                contentDescription = if (viewModel.isPinned) "Unpin document" else "Pin document",
+                                tint = if (viewModel.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(onClick = { showStats = !showStats }) {
+                            Icon(Icons.Default.BarChart, contentDescription = "Show document statistics")
+                        }
+                        IconButton(onClick = { viewModel.toggleFindReplace() }) {
+                            Icon(Icons.Default.FindReplace, contentDescription = "Find and replace")
+                        }
+                        IconButton(onClick = { showExportMenu = true }) {
+                            Icon(Icons.Default.Share, contentDescription = "Export document")
+                        }
+                        DropdownMenu(expanded = showExportMenu, onDismissRequest = { showExportMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Export as HTML") },
+                                onClick = {
+                                    showExportMenu = false
+                                    MarkdownExport.shareAsHtml(context, viewModel.title, viewModel.textFieldValue.text)
+                                    scope.launch { snackbarHostState.showSnackbar("Opening HTML share sheet") }
+                                },
+                                leadingIcon = { Icon(Icons.Default.Code, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export as PDF") },
+                                onClick = {
+                                    showExportMenu = false
+                                    val result = MarkdownExport.exportAsPdf(context, viewModel.title, viewModel.textFieldValue.text)
+                                    result.onSuccess { uri ->
+                                        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            type = "application/pdf"
+                                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(android.content.Intent.createChooser(shareIntent, "Share PDF"))
+                                    }.onFailure { e ->
+                                        scope.launch { snackbarHostState.showSnackbar("PDF export failed: ${e.message}") }
+                                    }
+                                },
+                                leadingIcon = { Icon(Icons.Outlined.PictureAsPdf, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export as .md file") },
+                                onClick = {
+                                    showExportMenu = false
+                                    val result = MarkdownExport.exportToFile(context, viewModel.title, viewModel.textFieldValue.text)
+                                    result.onSuccess { uri ->
+                                        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            type = "text/markdown"
+                                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(android.content.Intent.createChooser(shareIntent, "Share .md file"))
+                                    }.onFailure { e ->
+                                        scope.launch { snackbarHostState.showSnackbar("Export failed: ${e.message}") }
+                                    }
+                                },
+                                leadingIcon = { Icon(Icons.Default.Code, contentDescription = null) }
+                            )
+                        }
+                        IconButton(onClick = onAiAssistant) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = "AI writing assistant")
+                        }
+                        IconButton(onClick = { isPreview = !isPreview }) {
+                            Icon(
+                                if (isPreview) Icons.Default.Edit else Icons.Default.Visibility,
+                                contentDescription = if (isPreview) "Switch to editor" else "Switch to preview"
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                )
+
+                AnimatedVisibility(visible = viewModel.showFindReplace) {
+                    FindReplaceBar(viewModel = viewModel, snackbarHostState = snackbarHostState)
+                }
+
+                AnimatedVisibility(visible = showStats) {
+                    StatsBar(stats = viewModel.stats)
                 }
             }
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                if (isPreview) {
-                    MarkdownDisplay(
-                        markdown = renderWikilinks(viewModel.textFieldValue.text),
-                        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (isPreview) {
+                MarkdownDisplay(
+                    markdown = renderWikilinks(viewModel.textFieldValue.text),
+                    modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())
+                )
+            } else {
+                if (!viewModel.isFocusMode) {
+                    EditorToolbar(onFormatAction = { viewModel.formatAction(it) })
+                    Spacer(Modifier.height(4.dp))
+                }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = viewModel.textFieldValue,
+                        onValueChange = { viewModel.updateTextFieldValue(it) },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = if (viewModel.isFocusMode) 0.dp else 16.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            lineHeight = if (viewModel.isFocusMode) 32.sp else 28.sp
+                        ),
+                        visualTransformation = syntaxTransformation,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0f),
+                            focusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0f)
+                        )
                     )
-                } else {
-                    if (!viewModel.isFocusMode) {
-                        EditorToolbar(onFormatAction = { viewModel.formatAction(it) })
-                        Spacer(Modifier.height(4.dp))
-                    }
+                }
 
-                    Box(modifier = Modifier.weight(1f)) {
-                        OutlinedTextField(
-                            value = viewModel.textFieldValue,
-                            onValueChange = { viewModel.updateTextFieldValue(it) },
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = if (viewModel.isFocusMode) 0.dp else 16.dp),
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                lineHeight = if (viewModel.isFocusMode) 32.sp else 28.sp
-                            ),
-                            visualTransformation = syntaxTransformation,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0f),
-                                focusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0f)
-                            )
-                        )
-                    }
-
-                    if (!viewModel.isFocusMode) {
-                        StatusBar(
-                            wordCount = viewModel.stats.wordCount,
-                            charCount = viewModel.stats.charCount
-                        )
-                    }
+                if (!viewModel.isFocusMode) {
+                    StatusBar(
+                        wordCount = viewModel.stats.wordCount,
+                        charCount = viewModel.stats.charCount
+                    )
                 }
             }
         }
@@ -276,11 +311,9 @@ fun EditorScreen(
 }
 
 @Composable
-private fun FindReplaceBar(viewModel: EditorViewModel) {
-    Surface(
-        tonalElevation = 2.dp,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
-    ) {
+private fun FindReplaceBar(viewModel: EditorViewModel, snackbarHostState: SnackbarHostState) {
+    val scope = rememberCoroutineScope()
+    Surface(tonalElevation = 2.dp, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Column(modifier = Modifier.padding(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -302,13 +335,13 @@ private fun FindReplaceBar(viewModel: EditorViewModel) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 IconButton(onClick = { viewModel.findPrevious() }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.NavigateNext, contentDescription = "Previous", modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = "Previous match", modifier = Modifier.size(18.dp))
                 }
                 IconButton(onClick = { viewModel.findNext() }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.NavigateNext, contentDescription = "Next", modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "Next match", modifier = Modifier.size(18.dp))
                 }
                 IconButton(onClick = { viewModel.toggleFindReplace() }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Close, contentDescription = "Close find and replace", modifier = Modifier.size(18.dp))
                 }
             }
             Row(
@@ -325,11 +358,17 @@ private fun FindReplaceBar(viewModel: EditorViewModel) {
                     textStyle = MaterialTheme.typography.bodySmall
                 )
                 AssistChip(
-                    onClick = { viewModel.replaceCurrent(viewModel.replaceQuery) },
+                    onClick = {
+                        viewModel.replaceCurrent(viewModel.replaceQuery)
+                        scope.launch { snackbarHostState.showSnackbar("Replaced 1 occurrence") }
+                    },
                     label = { Text("Replace", style = MaterialTheme.typography.labelSmall) }
                 )
                 AssistChip(
-                    onClick = { viewModel.replaceAll(viewModel.findQuery, viewModel.replaceQuery) },
+                    onClick = {
+                        viewModel.replaceAll(viewModel.findQuery, viewModel.replaceQuery)
+                        scope.launch { snackbarHostState.showSnackbar("Replaced all occurrences") }
+                    },
                     label = { Text("All", style = MaterialTheme.typography.labelSmall) }
                 )
             }
@@ -339,10 +378,7 @@ private fun FindReplaceBar(viewModel: EditorViewModel) {
 
 @Composable
 private fun StatsBar(stats: DocumentStats) {
-    Surface(
-        tonalElevation = 1.dp,
-        color = MaterialTheme.colorScheme.surfaceContainerLow
-    ) {
+    Surface(tonalElevation = 1.dp, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -366,36 +402,6 @@ private fun StatItem(label: String, value: String) {
 }
 
 @Composable
-private fun TagEditorBar(currentTags: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
-    var tags by remember { mutableStateOf(currentTags) }
-    Surface(
-        tonalElevation = 2.dp,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = tags,
-                onValueChange = { tags = it },
-                placeholder = { Text("tag1, tag2, tag3") },
-                singleLine = true,
-                modifier = Modifier.weight(1f).height(48.dp),
-                textStyle = MaterialTheme.typography.bodySmall
-            )
-            IconButton(onClick = { onSave(tags) }) {
-                Icon(Icons.Default.Check, contentDescription = "Save tags")
-            }
-            IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "Close")
-            }
-        }
-    }
-}
-
-@Composable
 private fun EditorToolbar(onFormatAction: (FormatAction) -> Unit) {
     Surface(tonalElevation = 1.dp, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
@@ -403,15 +409,15 @@ private fun EditorToolbar(onFormatAction: (FormatAction) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ToolbarButton(Icons.Default.FormatBold, "Bold") { onFormatAction(FormatAction.Bold) }
-            ToolbarButton(Icons.Default.FormatItalic, "Italic") { onFormatAction(FormatAction.Italic) }
+            ToolbarButton(Icons.Default.FormatBold, "Bold (Ctrl+B)") { onFormatAction(FormatAction.Bold) }
+            ToolbarButton(Icons.Default.FormatItalic, "Italic (Ctrl+I)") { onFormatAction(FormatAction.Italic) }
             ToolbarButton(Icons.Default.FormatStrikethrough, "Strikethrough") { onFormatAction(FormatAction.Strikethrough) }
             ToolbarSeparator()
             ToolbarButton(Icons.Default.Title, "Heading 1") { onFormatAction(FormatAction.Heading1) }
             ToolbarButton(Icons.Default.LooksOne, "Heading 2") { onFormatAction(FormatAction.Heading2) }
             ToolbarButton(Icons.Default.LooksTwo, "Heading 3") { onFormatAction(FormatAction.Heading3) }
             ToolbarSeparator()
-            ToolbarButton(Icons.Default.FormatListBulleted, "Bullet List") { onFormatAction(FormatAction.BulletList) }
+            ToolbarButton(Icons.AutoMirrored.Filled.FormatListBulleted, "Bullet List") { onFormatAction(FormatAction.BulletList) }
             ToolbarButton(Icons.Default.FormatListNumbered, "Numbered List") { onFormatAction(FormatAction.NumberedList) }
             ToolbarSeparator()
             ToolbarButton(Icons.Default.FormatQuote, "Blockquote") { onFormatAction(FormatAction.Blockquote) }
@@ -419,8 +425,8 @@ private fun EditorToolbar(onFormatAction: (FormatAction) -> Unit) {
             ToolbarButton(Icons.Default.InsertLink, "Link") { onFormatAction(FormatAction.Link) }
             ToolbarButton(Icons.Default.HorizontalRule, "Horizontal Rule") { onFormatAction(FormatAction.HorizontalRule) }
             ToolbarSeparator()
-            ToolbarButton(Icons.AutoMirrored.Filled.Undo, "Undo") { onFormatAction(FormatAction.Undo) }
-            ToolbarButton(Icons.AutoMirrored.Filled.Redo, "Redo") { onFormatAction(FormatAction.Redo) }
+            ToolbarButton(Icons.AutoMirrored.Filled.Undo, "Undo (Ctrl+Z)") { onFormatAction(FormatAction.Undo) }
+            ToolbarButton(Icons.AutoMirrored.Filled.Redo, "Redo (Ctrl+Y)") { onFormatAction(FormatAction.Redo) }
         }
     }
 }

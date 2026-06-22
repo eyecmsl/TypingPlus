@@ -21,6 +21,7 @@ class SettingsDataStore(private val context: Context) {
         val MODEL = stringPreferencesKey("ai_model")
         val SYSTEM_PROMPT = stringPreferencesKey("ai_system_prompt")
         val DARK_MODE = booleanPreferencesKey("dark_mode")
+        val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
     }
 
     val aiConfigFlow: Flow<AiConfig> = context.dataStore.data.map { prefs ->
@@ -48,6 +49,16 @@ class SettingsDataStore(private val context: Context) {
     suspend fun setDarkMode(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[Keys.DARK_MODE] = enabled
+        }
+    }
+
+    val onboardingCompletedFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.ONBOARDING_COMPLETED] ?: false
+    }
+
+    suspend fun setOnboardingCompleted() {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.ONBOARDING_COMPLETED] = true
         }
     }
 }
