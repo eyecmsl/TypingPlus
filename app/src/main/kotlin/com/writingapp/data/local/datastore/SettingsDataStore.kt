@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.writingapp.domain.model.AiConfig
@@ -20,6 +22,10 @@ class SettingsDataStore(private val context: Context) {
         val API_KEY = stringPreferencesKey("ai_api_key")
         val MODEL = stringPreferencesKey("ai_model")
         val SYSTEM_PROMPT = stringPreferencesKey("ai_system_prompt")
+        val TEMPERATURE = doublePreferencesKey("ai_temperature")
+        val MAX_TOKENS = intPreferencesKey("ai_max_tokens")
+        val TOP_P = doublePreferencesKey("ai_top_p")
+        val GHOST_TEXT_ENABLED = booleanPreferencesKey("ghost_text_enabled")
         val DARK_MODE = booleanPreferencesKey("dark_mode")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
     }
@@ -29,7 +35,11 @@ class SettingsDataStore(private val context: Context) {
             baseUrl = prefs[Keys.BASE_URL] ?: "http://localhost:8080/v1",
             apiKey = prefs[Keys.API_KEY] ?: "",
             model = prefs[Keys.MODEL] ?: "gpt-4o-mini",
-            systemPrompt = prefs[Keys.SYSTEM_PROMPT] ?: "You are a creative writing assistant."
+            systemPrompt = prefs[Keys.SYSTEM_PROMPT] ?: "You are a creative writing assistant.",
+            temperature = prefs[Keys.TEMPERATURE] ?: 0.7,
+            maxTokens = prefs[Keys.MAX_TOKENS] ?: 4096,
+            topP = prefs[Keys.TOP_P] ?: 0.9,
+            ghostTextEnabled = prefs[Keys.GHOST_TEXT_ENABLED] ?: false
         )
     }
 
@@ -43,6 +53,10 @@ class SettingsDataStore(private val context: Context) {
             prefs[Keys.API_KEY] = config.apiKey
             prefs[Keys.MODEL] = config.model
             prefs[Keys.SYSTEM_PROMPT] = config.systemPrompt
+            prefs[Keys.TEMPERATURE] = config.temperature
+            prefs[Keys.MAX_TOKENS] = config.maxTokens
+            prefs[Keys.TOP_P] = config.topP
+            prefs[Keys.GHOST_TEXT_ENABLED] = config.ghostTextEnabled
         }
     }
 

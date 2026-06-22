@@ -1,7 +1,6 @@
 package com.writingapp.ui.editor
 
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -26,7 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.automirrored.filled.Redo
-import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
@@ -36,7 +34,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FindReplace
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
-import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.FormatStrikethrough
@@ -45,7 +42,6 @@ import androidx.compose.material.icons.filled.InsertLink
 import androidx.compose.material.icons.filled.Looks3
 import androidx.compose.material.icons.filled.LooksOne
 import androidx.compose.material.icons.filled.LooksTwo
-import androidx.compose.material.icons.filled.NavigateNext
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Title
@@ -75,6 +71,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,7 +80,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -98,7 +94,6 @@ import org.koin.androidx.compose.koinViewModel
 fun EditorScreen(
     documentId: Long,
     onBack: () -> Unit,
-    onAiAssistant: () -> Unit,
     viewModel: EditorViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -125,8 +120,28 @@ fun EditorScreen(
         }
     )
 
+    val copilotViewModel: CopilotViewModel = koinViewModel()
+
     LaunchedEffect(documentId) {
         viewModel.loadDocument(documentId)
+    }
+
+    val currentContent = viewModel.textFieldValue.text
+    val selection = viewModel.textFieldValue.selection
+    val selectedText = if (selection.start != selection.end)
+        currentContent.substring(minOf(selection.start, selection.end), maxOf(selection.start, selection.end))
+    else null
+    viewModel.setSelectedText(selectedText)
+
+    LaunchedEffect(currentContent) {
+        copilotViewModel.updateDocumentContext(currentContent)
+    }
+
+    val ghostText by copilotViewModel.ghostText.collectAsState()
+    LaunchedEffect(ghostText) {
+        if (ghostText != null) {
+            viewModel.applyGhostText(ghostText!!)
+        }
     }
 
     val syntaxColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -242,7 +257,7 @@ fun EditorScreen(
                                 leadingIcon = { Icon(Icons.Default.Code, contentDescription = null) }
                             )
                         }
-                        IconButton(onClick = onAiAssistant) {
+                        IconButton(onClick = { copilotViewModel.toggleCopilot() }) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = "AI writing assistant")
                         }
                         IconButton(onClick = { isPreview = !isPreview }) {
@@ -265,47 +280,61 @@ fun EditorScreen(
             }
         }
     ) { padding ->
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (isPreview) {
-                MarkdownDisplay(
-                    markdown = renderWikilinks(viewModel.textFieldValue.text),
-                    modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())
-                )
-            } else {
-                if (!viewModel.isFocusMode) {
-                    EditorToolbar(onFormatAction = { viewModel.formatAction(it) })
-                    Spacer(Modifier.height(4.dp))
-                }
+            Column(modifier = Modifier.weight(1f)) {
+                if (isPreview) {
+                    MarkdownDisplay(
+                        markdown = renderWikilinks(viewModel.textFieldValue.text),
+                        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())
+                    )
+                } else {
+                    if (!viewModel.isFocusMode) {
+                        EditorToolbar(onFormatAction = { viewModel.formatAction(it) })
+                        Spacer(Modifier.height(4.dp))
+                    }
 
-                Box(modifier = Modifier.weight(1f)) {
-                    OutlinedTextField(
-                        value = viewModel.textFieldValue,
-                        onValueChange = { viewModel.updateTextFieldValue(it) },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = if (viewModel.isFocusMode) 0.dp else 16.dp),
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(
-                            lineHeight = if (viewModel.isFocusMode) 32.sp else 28.sp
-                        ),
-                        visualTransformation = syntaxTransformation,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0f),
-                            focusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0f)
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(
+                            value = viewModel.textFieldValue,
+                            onValueChange = { viewModel.updateTextFieldValue(it) },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = if (viewModel.isFocusMode) 0.dp else 16.dp),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                lineHeight = if (viewModel.isFocusMode) 32.sp else 28.sp
+                            ),
+                            visualTransformation = syntaxTransformation,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0f),
+                                focusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0f)
+                            )
                         )
-                    )
-                }
+                    }
 
-                if (!viewModel.isFocusMode) {
-                    StatusBar(
-                        wordCount = viewModel.stats.wordCount,
-                        charCount = viewModel.stats.charCount
-                    )
+                    if (!viewModel.isFocusMode) {
+                        StatusBar(
+                            wordCount = viewModel.stats.wordCount,
+                            charCount = viewModel.stats.charCount
+                        )
+                    }
                 }
             }
+
+            CopilotPanel(
+                viewModel = copilotViewModel,
+                fullEditorContent = currentContent,
+                selectedText = selectedText,
+                onAcceptSuggestion = { newContent, _ ->
+                    viewModel.applyCopilotSuggestion(newContent)
+                },
+                onRejectSuggestion = {
+                    viewModel.revertSuggestion()
+                }
+            )
         }
     }
 }

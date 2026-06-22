@@ -9,8 +9,8 @@ import com.writingapp.domain.repository.DocumentRepository
 import com.writingapp.domain.repository.RulebookRepository
 import com.writingapp.domain.repository.WordlineRepository
 import com.writingapp.domain.usecase.*
-import com.writingapp.ui.assistant.AssistantViewModel
 import com.writingapp.ui.dashboard.DashboardViewModel
+import com.writingapp.ui.editor.CopilotViewModel
 import com.writingapp.ui.editor.EditorViewModel
 import com.writingapp.ui.rulebook.RulebookViewModel
 import com.writingapp.ui.search.SearchViewModel
@@ -23,7 +23,7 @@ val repositoryModule = module {
     single<DocumentRepository> { DocumentRepositoryImpl(get()) }
     single<RulebookRepository> { RulebookRepositoryImpl(get()) }
     single<WordlineRepository> { WordlineRepositoryImpl(get()) }
-    single<AiRepository> { AiRepositoryImpl(get(), get(), get()) }
+    single<AiRepository> { AiRepositoryImpl(get(), get(), get(), get()) }
 }
 
 val useCaseModule = module {
@@ -37,11 +37,11 @@ val useCaseModule = module {
 val viewModelModule = module {
     viewModel { DashboardViewModel(get(), get(), get()) }
     viewModel { EditorViewModel(get(), get(), get()) }
-    viewModel { AssistantViewModel(get(), get(), get()) }
     viewModel { RulebookViewModel(get(), get()) }
     viewModel { WordlineViewModel(get(), get()) }
     viewModel { SettingsViewModel(get()) }
     viewModel { SearchViewModel(get()) }
+    viewModel { CopilotViewModel(get(), get()) }
 }
 
 val appModules = listOf(

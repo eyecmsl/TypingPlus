@@ -3,10 +3,6 @@ package com.writingapp.ui.navigation
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
@@ -15,7 +11,6 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.writingapp.ui.assistant.AssistantScreen
 import com.writingapp.ui.editor.EditorScreen
 import com.writingapp.ui.rulebook.RulebookScreen
 import com.writingapp.ui.wordline.WordlineScreen
@@ -37,9 +32,6 @@ fun NavGraph(navController: NavHostController) {
                 onNavigateToWordline = {
                     navController.navigate(Screen.Wordline.route)
                 },
-                onNavigateToAssistant = { docId ->
-                    navController.navigate(Screen.Assistant.createRoute(docId))
-                },
                 rootNavController = navController
             )
         }
@@ -52,22 +44,6 @@ fun NavGraph(navController: NavHostController) {
         ) { backStackEntry ->
             val documentId = backStackEntry.arguments?.getLong("documentId") ?: 0L
             EditorScreen(
-                documentId = documentId,
-                onBack = { navController.popBackStack() },
-                onAiAssistant = {
-                    navController.navigate(Screen.Assistant.createRoute(documentId))
-                }
-            )
-        }
-
-        composable(
-            route = Screen.Assistant.route,
-            arguments = listOf(navArgument("documentId") { type = NavType.LongType }),
-            enterTransition = { slideInVertically(tween(300)) { it } + fadeIn(tween(300)) },
-            exitTransition = { slideOutVertically(tween(300)) { it } + fadeOut(tween(300)) }
-        ) { backStackEntry ->
-            val documentId = backStackEntry.arguments?.getLong("documentId") ?: 0L
-            AssistantScreen(
                 documentId = documentId,
                 onBack = { navController.popBackStack() }
             )

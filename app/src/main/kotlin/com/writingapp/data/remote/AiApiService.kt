@@ -6,11 +6,12 @@ import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.POST
+import retrofit2.http.Url
 
 interface AiApiService {
-    @POST("chat/completions")
-    suspend fun chatCompletion(@Body request: ChatRequest): Response<ChatResponse>
+    @POST
+    suspend fun chatCompletion(@Url url: String, @Body request: ChatRequest): Response<ChatResponse>
 
-    @POST("chat/completions")
-    suspend fun chatCompletionStream(@Body request: ChatRequest): Response<ResponseBody>
+    @POST
+    suspend fun chatCompletionStream(@Url url: String, @Body request: ChatRequest): Response<ResponseBody>
 }

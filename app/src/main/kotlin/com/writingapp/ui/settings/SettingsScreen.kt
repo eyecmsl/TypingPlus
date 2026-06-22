@@ -18,6 +18,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.writingapp.domain.model.AiConfig
 import org.koin.androidx.compose.koinViewModel
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +48,10 @@ fun SettingsScreen(
     var apiKey by remember(config) { mutableStateOf(config.apiKey) }
     var model by remember(config) { mutableStateOf(config.model) }
     var systemPrompt by remember(config) { mutableStateOf(config.systemPrompt) }
+    var temperature by remember(config) { mutableStateOf(config.temperature) }
+    var maxTokens by remember(config) { mutableStateOf(config.maxTokens.toString()) }
+    var topP by remember(config) { mutableStateOf(config.topP) }
+    var ghostTextEnabled by remember(config) { mutableStateOf(config.ghostTextEnabled) }
 
     Scaffold(
         topBar = {
@@ -131,6 +137,57 @@ fun SettingsScreen(
                 maxLines = 5
             )
 
+            HorizontalDivider()
+
+            Text(
+                text = "AI Copilot",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Ghost text suggestions", style = MaterialTheme.typography.bodyLarge)
+                Switch(
+                    checked = ghostTextEnabled,
+                    onCheckedChange = { ghostTextEnabled = it }
+                )
+            }
+
+            Text(
+                text = "Temperature: ${(temperature * 100).roundToInt() / 100.0}",
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Slider(
+                value = temperature,
+                onValueChange = { temperature = it },
+                valueRange = 0f..2f,
+                steps = 199,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Text(
+                text = "Top P: ${(topP * 100).roundToInt() / 100.0}",
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Slider(
+                value = topP,
+                onValueChange = { topP = it },
+                valueRange = 0f..1f,
+                steps = 99,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = maxTokens,
+                onValueChange = { maxTokens = it.filter { c -> c.isDigit() } },
+                label = { Text("Max Tokens") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(Modifier.weight(1f))
 
             Button(
@@ -140,7 +197,11 @@ fun SettingsScreen(
                             baseUrl = baseUrl.trimEnd('/'),
                             apiKey = apiKey,
                             model = model,
-                            systemPrompt = systemPrompt
+                            systemPrompt = systemPrompt,
+                            temperature = temperature,
+                            maxTokens = maxTokens.toIntOrNull() ?: 4096,
+                            topP = topP,
+                            ghostTextEnabled = ghostTextEnabled
                         )
                     )
                 },

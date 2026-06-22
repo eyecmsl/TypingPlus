@@ -11,6 +11,22 @@ interface AiRepository {
         config: AiConfig,
         onChunk: (String) -> Unit
     ): String
+
+    suspend fun sendSelectionAction(
+        selectedText: String,
+        instruction: String,
+        documentContext: String,
+        config: AiConfig,
+        onChunk: (String) -> Unit
+    ): String
+
+    suspend fun requestGhostCompletion(
+        textBeforeCursor: String,
+        textAfterCursor: String,
+        config: AiConfig,
+        onChunk: (String) -> Unit
+    ): String
+
     fun getAiConfig(): Flow<AiConfig>
     suspend fun saveAiConfig(config: AiConfig)
     fun isDarkMode(): Flow<Boolean>

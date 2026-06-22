@@ -23,7 +23,6 @@ fun MainScreen(
     onNavigateToEditor: (Long) -> Unit,
     onNavigateToRulebook: () -> Unit,
     onNavigateToWordline: () -> Unit,
-    onNavigateToAssistant: (Long) -> Unit,
     rootNavController: NavHostController
 ) {
     val navController = rememberNavController()

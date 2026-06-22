@@ -387,6 +387,75 @@ class EditorViewModel(
         )
     }
 
+    var suggestionPreview by mutableStateOf<String?>(null)
+        private set
+
+    var ghostTextPreview by mutableStateOf<String?>(null)
+        private set
+
+    var originalTextBeforeSuggestion by mutableStateOf<String?>(null)
+        private set
+
+    var selectedText by mutableStateOf<String?>(null)
+        private set
+
+    fun setSelectedText(text: String?) {
+        selectedText = text
+    }
+
+    fun applySuggestionPreview(modified: String, original: String) {
+        originalTextBeforeSuggestion = textFieldValue.text
+        val current = textFieldValue.text
+        if (current.contains(original)) {
+            textFieldValue = TextFieldValue(
+                text = current.replaceFirst(original, modified),
+                selection = TextRange(0)
+            )
+        }
+        suggestionPreview = modified
+    }
+
+    fun acceptSuggestion() {
+        suggestionPreview = null
+        originalTextBeforeSuggestion = null
+        updateAllStats(textFieldValue.text)
+        autoSave()
+    }
+
+    fun revertSuggestion() {
+        val orig = originalTextBeforeSuggestion
+        if (orig != null) {
+            textFieldValue = TextFieldValue(orig, TextRange(0))
+        }
+        suggestionPreview = null
+        originalTextBeforeSuggestion = null
+    }
+
+    fun applyCopilotSuggestion(newContent: String) {
+        textFieldValue = TextFieldValue(newContent, TextRange(0))
+        suggestionPreview = null
+        originalTextBeforeSuggestion = null
+        updateAllStats(newContent)
+        autoSave()
+    }
+
+    fun applyGhostText(text: String) {
+        val tv = textFieldValue
+        val cursor = tv.selection.start
+        val newText = tv.text.substring(0, cursor) + text + tv.text.substring(cursor)
+        textFieldValue = tv.copy(
+            text = newText,
+            selection = TextRange(cursor + text.length)
+        )
+        ghostTextPreview = null
+        updateAllStats(newText)
+        autoSave()
+    }
+
+    fun dismissGhostText() {
+        ghostTextPreview = null
+    }
+
     private fun autoSave() {
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
