@@ -25,6 +25,12 @@ class AiRepositoryImpl(
         settingsDataStore.saveAiConfig(config)
     }
 
+    override fun isDarkMode(): Flow<Boolean> = settingsDataStore.darkModeFlow
+
+    override suspend fun setDarkMode(enabled: Boolean) {
+        settingsDataStore.setDarkMode(enabled)
+    }
+
     override suspend fun sendMessage(
         messages: List<ChatMessage>,
         context: String,

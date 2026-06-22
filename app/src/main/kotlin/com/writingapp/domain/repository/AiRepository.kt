@@ -13,4 +13,6 @@ interface AiRepository {
     ): String
     fun getAiConfig(): Flow<AiConfig>
     suspend fun saveAiConfig(config: AiConfig)
+    fun isDarkMode(): Flow<Boolean>
+    suspend fun setDarkMode(enabled: Boolean)
 }

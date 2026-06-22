@@ -3,6 +3,7 @@ package com.writingapp.data.local.datastore
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -19,6 +20,7 @@ class SettingsDataStore(private val context: Context) {
         val API_KEY = stringPreferencesKey("ai_api_key")
         val MODEL = stringPreferencesKey("ai_model")
         val SYSTEM_PROMPT = stringPreferencesKey("ai_system_prompt")
+        val DARK_MODE = booleanPreferencesKey("dark_mode")
     }
 
     val aiConfigFlow: Flow<AiConfig> = context.dataStore.data.map { prefs ->
@@ -30,12 +32,22 @@ class SettingsDataStore(private val context: Context) {
         )
     }
 
+    val darkModeFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.DARK_MODE] ?: false
+    }
+
     suspend fun saveAiConfig(config: AiConfig) {
         context.dataStore.edit { prefs ->
             prefs[Keys.BASE_URL] = config.baseUrl
             prefs[Keys.API_KEY] = config.apiKey
             prefs[Keys.MODEL] = config.model
             prefs[Keys.SYSTEM_PROMPT] = config.systemPrompt
+        }
+    }
+
+    suspend fun setDarkMode(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.DARK_MODE] = enabled
         }
     }
 }

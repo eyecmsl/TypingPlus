@@ -35,7 +35,7 @@ val useCaseModule = module {
 
 val viewModelModule = module {
     viewModel { DashboardViewModel(get(), get(), get()) }
-    viewModel { EditorViewModel(get(), get()) }
+    viewModel { EditorViewModel(get(), get(), get()) }
     viewModel { AssistantViewModel(get(), get(), get()) }
     viewModel { RulebookViewModel(get(), get()) }
     viewModel { WordlineViewModel(get(), get()) }

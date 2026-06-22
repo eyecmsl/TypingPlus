@@ -16,9 +16,18 @@ class SettingsViewModel(
     val aiConfig: StateFlow<AiConfig> = aiRepository.getAiConfig()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AiConfig())
 
+    val isDarkMode: StateFlow<Boolean> = aiRepository.isDarkMode()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     fun saveConfig(config: AiConfig) {
         viewModelScope.launch {
             aiRepository.saveAiConfig(config)
+        }
+    }
+
+    fun toggleDarkMode(enabled: Boolean) {
+        viewModelScope.launch {
+            aiRepository.setDarkMode(enabled)
         }
     }
 }
