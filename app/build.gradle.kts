@@ -76,6 +76,8 @@ dependencies {
 
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.10.0.202406032230-r")
 
+    implementation("androidx.biometric:biometric:1.2.0-alpha05")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

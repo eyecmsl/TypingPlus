@@ -10,5 +10,12 @@ data class DocumentEntity(
     val content: String,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val wordCount: Int = 0
+    val wordCount: Int = 0,
+    val charCount: Int = 0,
+    val paragraphCount: Int = 0,
+    val sentenceCount: Int = 0,
+    val isPinned: Boolean = false,
+    val tags: String = "",
+    val isDailyNote: Boolean = false,
+    val dailyNoteDate: String = ""
 )

@@ -15,12 +15,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,6 +55,7 @@ import java.util.Locale
 fun DashboardScreen(
     onDocumentClick: (Long) -> Unit,
     onNewDocument: (Long) -> Unit,
+    onSearchClick: () -> Unit = {},
     onRulebookClick: () -> Unit,
     onWordlineClick: () -> Unit,
     onSettingsClick: () -> Unit,
@@ -67,6 +71,9 @@ fun DashboardScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
                 actions = {
+                    IconButton(onClick = onSearchClick) {
+                        Icon(Icons.Default.Search, contentDescription = "Search")
+                    }
                     IconButton(onClick = onRulebookClick) {
                         Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "Rulebook")
                     }
@@ -81,9 +88,7 @@ fun DashboardScreen(
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = {
-                    viewModel.createNewDocument()
-                },
+                onClick = { viewModel.createNewDocument() },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 text = { Text("New Document") },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -110,7 +115,8 @@ fun DashboardScreen(
                     DocumentCard(
                         document = document,
                         onClick = { onDocumentClick(document.id) },
-                        onDelete = { viewModel.deleteDocument(document.id) }
+                        onDelete = { viewModel.deleteDocument(document.id) },
+                        onTogglePin = { viewModel.togglePin(document) }
                     )
                 }
             }
@@ -122,7 +128,8 @@ fun DashboardScreen(
 private fun DocumentCard(
     document: Document,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onTogglePin: () -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
 
@@ -131,7 +138,10 @@ private fun DocumentCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (document.isPinned)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else
+                MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Row(
@@ -140,13 +150,16 @@ private fun DocumentCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Edit,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(40.dp)
-            )
-            Spacer(Modifier.width(16.dp))
+            IconButton(onClick = onTogglePin) {
+                Icon(
+                    imageVector = if (document.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                    contentDescription = if (document.isPinned) "Unpin" else "Pin",
+                    tint = if (document.isPinned) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = document.title,
@@ -160,6 +173,14 @@ private fun DocumentCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (document.tags.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = document.tags.joinToString(" \u00b7 ") { "#$it" },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             IconButton(onClick = onDelete) {
                 Icon(

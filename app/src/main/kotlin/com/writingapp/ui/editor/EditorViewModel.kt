@@ -24,6 +24,15 @@ enum class FormatAction {
     Undo, Redo
 }
 
+data class DocumentStats(
+    val wordCount: Int = 0,
+    val charCount: Int = 0,
+    val charCountNoSpaces: Int = 0,
+    val paragraphCount: Int = 0,
+    val sentenceCount: Int = 0,
+    val readingTimeMinutes: Int = 0
+)
+
 class EditorViewModel(
     private val documentRepository: DocumentRepository,
     private val saveDocumentUseCase: SaveDocumentUseCase,
@@ -33,13 +42,21 @@ class EditorViewModel(
     var textFieldValue by mutableStateOf(TextFieldValue())
         private set
 
-    val wordCount: Int get() = _wordCount
-    val charCount: Int get() = _charCount
-
-    private var _wordCount = 0
-    private var _charCount = 0
+    var stats by mutableStateOf(DocumentStats())
+        private set
 
     var title by mutableStateOf("")
+        private set
+
+    var isFocusMode by mutableStateOf(false)
+        private set
+    var showFindReplace by mutableStateOf(false)
+        private set
+    var findQuery by mutableStateOf("")
+    var replaceQuery by mutableStateOf("")
+    var findMatchCount by mutableStateOf(0)
+        private set
+    var currentFindIndex by mutableStateOf(0)
         private set
 
     private var documentId: Long = 0L
@@ -62,7 +79,7 @@ class EditorViewModel(
                     title = doc.title
                     documentId = doc.id
                     lastSavedContent = doc.content
-                    updateCounts(doc.content)
+                    updateAllStats(doc.content)
                     undoStack.clear()
                     redoStack.clear()
                 }
@@ -80,7 +97,7 @@ class EditorViewModel(
                 if (processed != null) {
                     pushUndo(oldText)
                     textFieldValue = TextFieldValue(text = processed.first, selection = TextRange(processed.second))
-                    updateCounts(processed.first)
+                    updateAllStats(processed.first)
                     autoSave()
                     return
                 }
@@ -92,9 +109,112 @@ class EditorViewModel(
         }
 
         textFieldValue = value
-        updateCounts(value.text)
+        updateAllStats(value.text)
         autoSave()
     }
+
+    fun toggleFocusMode() {
+        isFocusMode = !isFocusMode
+    }
+
+    fun toggleFindReplace() {
+        showFindReplace = !showFindReplace
+        if (!showFindReplace) {
+            findQuery = ""
+            replaceQuery = ""
+            findMatchCount = 0
+            currentFindIndex = 0
+        }
+    }
+
+    fun performFind(query: String) {
+        findQuery = query
+        if (query.isBlank()) {
+            findMatchCount = 0
+            currentFindIndex = 0
+            return
+        }
+        val text = textFieldValue.text
+        val matches = findAllMatches(text, query)
+        findMatchCount = matches.size
+        currentFindIndex = if (matches.isNotEmpty()) 0 else 0
+    }
+
+    fun findNext() {
+        if (findMatchCount == 0 || findQuery.isBlank()) return
+        val text = textFieldValue.text
+        val matches = findAllMatches(text, findQuery)
+        if (matches.isEmpty()) return
+        currentFindIndex = (currentFindIndex + 1) % matches.size
+        val match = matches[currentFindIndex]
+        textFieldValue = textFieldValue.copy(selection = TextRange(match.first, match.last))
+    }
+
+    fun findPrevious() {
+        if (findMatchCount == 0 || findQuery.isBlank()) return
+        val text = textFieldValue.text
+        val matches = findAllMatches(text, findQuery)
+        if (matches.isEmpty()) return
+        currentFindIndex = if (currentFindIndex <= 0) matches.size - 1 else currentFindIndex - 1
+        val match = matches[currentFindIndex]
+        textFieldValue = textFieldValue.copy(selection = TextRange(match.first, match.last))
+    }
+
+    fun replaceCurrent(replacement: String) {
+        if (findMatchCount == 0 || findQuery.isBlank()) return
+        val text = textFieldValue.text
+        val matches = findAllMatches(text, findQuery)
+        if (matches.isEmpty()) return
+        val match = matches[currentFindIndex.coerceAtMost(matches.size - 1)]
+        val newText = text.substring(0, match.first) + replacement + text.substring(match.last)
+        val newCursor = match.first + replacement.length
+        pushUndo(text)
+        textFieldValue = TextFieldValue(text = newText, selection = TextRange(newCursor))
+        updateAllStats(newText)
+        performFind(findQuery)
+    }
+
+    fun replaceAll(find: String, replacement: String) {
+        if (find.isBlank()) return
+        val text = textFieldValue.text
+        val newText = text.replace(find, replacement)
+        pushUndo(text)
+        textFieldValue = TextFieldValue(text = newText, selection = TextRange(0))
+        updateAllStats(newText)
+        performFind(find)
+    }
+
+    private fun findAllMatches(text: String, query: String): List<IntRange> {
+        val matches = mutableListOf<IntRange>()
+        var startIndex = 0
+        while (true) {
+            val index = text.indexOf(query, startIndex, ignoreCase = true)
+            if (index < 0) break
+            matches.add(index until (index + query.length))
+            startIndex = index + 1
+        }
+        return matches
+    }
+
+    fun setTags(tags: List<String>) {
+        viewModelScope.launch {
+            if (documentId > 0) {
+                documentRepository.setTags(documentId, tags)
+            }
+        }
+    }
+
+    fun togglePin() {
+        viewModelScope.launch {
+            if (documentId > 0) {
+                documentRepository.setPinned(documentId, !isPinned)
+                isPinned = !isPinned
+            }
+        }
+    }
+
+    var isPinned by mutableStateOf(false)
+        private set
 
     private fun processAutoFormat(text: String, cursor: Int): Pair<String, Int>? {
         val lineStart = text.lastIndexOf('\n', cursor - 2) + 1
@@ -106,21 +226,18 @@ class EditorViewModel(
                 return Pair(newText, cursor)
             }
         }
-
         for (prefix in headingPrefixes) {
             if (currentLine == prefix.trimEnd()) {
                 val newText = text.substring(0, cursor) + text.substring(cursor)
                 return Pair(newText, cursor)
             }
         }
-
         for (prefix in autoFormatPrefixes) {
             if (currentLine.startsWith(prefix) && currentLine.length > prefix.length) {
                 val newText = text.substring(0, cursor) + prefix + text.substring(cursor)
                 return Pair(newText, cursor + prefix.length)
             }
         }
-
         val numberedMatch = Regex("^(\\d+)\\. ").find(currentLine)
         if (numberedMatch != null) {
             val prefix = numberedMatch.value
@@ -131,11 +248,9 @@ class EditorViewModel(
                 return Pair(newText, cursor + nextPrefix.length)
             }
         }
-
         val fenceMatch = Regex("^(`{3,}|~{3,})$").find(currentLine.trimEnd())
         if (fenceMatch != null && currentLine.trimEnd().length >= 3) {
             val fence = fenceMatch.groupValues[1]
-            val before = text.substring(0, lineStart)
             val afterLineStart = text.indexOf('\n', cursor)
             val after = if (afterLineStart >= 0) text.substring(afterLineStart) else ""
             if (!after.startsWith("\n$fence")) {
@@ -143,16 +258,13 @@ class EditorViewModel(
                 return Pair(newText, cursor)
             }
         }
-
         return null
     }
 
     private fun pushUndo(oldText: String) {
         undoStack.push(TextFieldValue(oldText, TextRange(textFieldValue.selection.start)))
         redoStack.clear()
-        if (undoStack.size > 100) {
-            undoStack.removeAt(0)
-        }
+        if (undoStack.size > 100) undoStack.removeAt(0)
     }
 
     fun updateTitle(newTitle: String) {
@@ -167,14 +279,8 @@ class EditorViewModel(
             text.substring(selection.start, selection.end)
         } else ""
 
-        if (action == FormatAction.Undo) {
-            undo()
-            return
-        }
-        if (action == FormatAction.Redo) {
-            redo()
-            return
-        }
+        if (action == FormatAction.Undo) { undo(); return }
+        if (action == FormatAction.Redo) { redo(); return }
 
         pushUndo(text)
 
@@ -189,33 +295,24 @@ class EditorViewModel(
             FormatAction.NumberedList -> prependToLine(text, selection, "1. ")
             FormatAction.Blockquote -> prependToLine(text, selection, "> ")
             FormatAction.Code -> {
-                if (selectedText.contains("\n")) {
-                    wrapBlock(text, selection, "```\n", "\n```")
-                } else {
-                    wrapInline(text, selection, "`", selectedText)
-                }
+                if (selectedText.contains("\n")) wrapBlock(text, selection, "```\n", "\n```")
+                else wrapInline(text, selection, "`", selectedText)
             }
             FormatAction.Link -> {
                 if (selectedText.isNotBlank()) {
                     val start = text.substring(0, selection.start)
                     val end = text.substring(selection.end)
-                    val newText = "$start[$selectedText](url)$end"
-                    val cursorPos = selection.start + selectedText.length + 3 + 5
-                    Pair(newText, TextRange(cursorPos))
+                    Pair("$start[$selectedText](url)$end", TextRange(selection.start + selectedText.length + 8))
                 } else {
                     val start = text.substring(0, selection.start)
                     val end = text.substring(selection.end)
-                    val newText = "$start[link text](url)$end"
-                    val cursorPos = selection.start + 1
-                    Pair(newText, TextRange(cursorPos))
+                    Pair("$start[link text](url)$end", TextRange(selection.start + 1))
                 }
             }
             FormatAction.HorizontalRule -> {
                 val start = text.substring(0, selection.start)
                 val end = text.substring(selection.end)
-                val newText = "$start\n\n---\n\n$end"
-                val cursorPos = selection.start + 6
-                Pair(newText, TextRange(cursorPos))
+                Pair("$start\n\n---\n\n$end", TextRange(selection.start + 6))
             }
             FormatAction.Undo, FormatAction.Redo -> Pair(text, selection)
         }
@@ -224,11 +321,8 @@ class EditorViewModel(
             applyNumberedList(newText, selection) ?: newText
         } else newText
 
-        textFieldValue = TextFieldValue(
-            text = finalText,
-            selection = newSelection
-        )
-        updateCounts(finalText)
+        textFieldValue = TextFieldValue(text = finalText, selection = newSelection)
+        updateAllStats(finalText)
     }
 
     private fun undo() {
@@ -236,7 +330,7 @@ class EditorViewModel(
             redoStack.push(textFieldValue)
             isUndoRedoAction = true
             textFieldValue = undoStack.pop()
-            updateCounts(textFieldValue.text)
+            updateAllStats(textFieldValue.text)
             isUndoRedoAction = false
         }
     }
@@ -246,7 +340,7 @@ class EditorViewModel(
             undoStack.push(textFieldValue)
             isUndoRedoAction = true
             textFieldValue = redoStack.pop()
-            updateCounts(textFieldValue.text)
+            updateAllStats(textFieldValue.text)
             isUndoRedoAction = false
         }
     }
@@ -255,35 +349,42 @@ class EditorViewModel(
         val start = text.substring(0, selection.start)
         val end = text.substring(selection.end)
         val wrapped = if (selected.isEmpty()) "$wrapper$wrapper" else "$wrapper$selected$wrapper"
-        val newText = "$start$wrapped$end"
-        val cursorPos = if (selected.isEmpty()) selection.start + wrapper.length else selection.start + wrapped.length
-        return Pair(newText, TextRange(cursorPos))
+        return Pair("$start$wrapped$end", TextRange(selection.start + wrapper.length))
     }
 
     private fun wrapBlock(text: String, selection: TextRange, open: String, close: String): Pair<String, TextRange> {
         val start = text.substring(0, selection.start)
         val end = text.substring(selection.end)
-        val newText = "$start$open$close$end"
-        val cursorPos = selection.start + open.length
-        return Pair(newText, TextRange(cursorPos))
+        return Pair("$start$open$close$end", TextRange(selection.start + open.length))
     }
 
     private fun prependToLine(text: String, selection: TextRange, prefix: String): Pair<String, TextRange> {
         val lineStart = text.lastIndexOf('\n', selection.start - 1) + 1
         val start = text.substring(0, lineStart)
         val end = text.substring(lineStart)
-        val newText = "$start$prefix$end"
-        val cursorPos = selection.start + prefix.length
-        return Pair(newText, TextRange(cursorPos))
+        return Pair("$start$prefix$end", TextRange(selection.start + prefix.length))
     }
 
     private fun applyNumberedList(text: String, selection: TextRange): String? = null
 
-    private fun updateCounts(text: String) {
-        _charCount = text.length
-        _wordCount = text.trim().split("\\s+".toRegex())
-            .filter { it.isNotEmpty() }
-            .size
+    private fun updateAllStats(text: String) {
+        val words = text.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        val wordCount = words.size
+        val charCount = text.length
+        val charCountNoSpaces = text.count { !it.isWhitespace() }
+        val paragraphs = text.split("\n\n").filter { it.isNotBlank() }
+        val paragraphCount = paragraphs.size
+        val sentenceCount = text.split(Regex("[.!?]+")).filter { it.isNotBlank() }.size
+        val readingTimeMinutes = (wordCount / 200).coerceAtLeast(1)
+
+        stats = DocumentStats(
+            wordCount = wordCount,
+            charCount = charCount,
+            charCountNoSpaces = charCountNoSpaces,
+            paragraphCount = paragraphCount,
+            sentenceCount = sentenceCount,
+            readingTimeMinutes = readingTimeMinutes
+        )
     }
 
     private fun autoSave() {
@@ -297,7 +398,11 @@ class EditorViewModel(
                         com.writingapp.domain.model.Document(
                             id = documentId,
                             title = title,
-                            content = currentContent
+                            content = currentContent,
+                            wordCount = stats.wordCount,
+                            charCount = stats.charCount,
+                            paragraphCount = stats.paragraphCount,
+                            sentenceCount = stats.sentenceCount
                         )
                     )
                     val versionCount = documentVersionDao.getVersionCount(documentId)

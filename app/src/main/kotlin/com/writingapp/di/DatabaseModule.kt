@@ -27,11 +27,28 @@ val databaseModule = module {
             """.trimIndent())
         }
 
+        val migration2to3 = Migration(2, 3) { db ->
+            db.execSQL("ALTER TABLE documents ADD COLUMN charCount INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE documents ADD COLUMN paragraphCount INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE documents ADD COLUMN sentenceCount INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE documents ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE documents ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE documents ADD COLUMN isDailyNote INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE documents ADD COLUMN dailyNoteDate TEXT NOT NULL DEFAULT ''")
+            db.execSQL("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts4(
+                    title, content,
+                    content=documents,
+                    tokenizer=unicode61
+                )
+            """.trimIndent())
+        }
+
         Room.databaseBuilder(
             androidContext(),
             AppDatabase::class.java,
             "writing_app.db"
-        ).addMigrations(migration1to2)
+        ).addMigrations(migration1to2, migration2to3)
             .fallbackToDestructiveMigration()
             .build()
     }

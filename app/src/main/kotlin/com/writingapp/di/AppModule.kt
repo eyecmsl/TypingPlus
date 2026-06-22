@@ -13,6 +13,7 @@ import com.writingapp.ui.assistant.AssistantViewModel
 import com.writingapp.ui.dashboard.DashboardViewModel
 import com.writingapp.ui.editor.EditorViewModel
 import com.writingapp.ui.rulebook.RulebookViewModel
+import com.writingapp.ui.search.SearchViewModel
 import com.writingapp.ui.settings.SettingsViewModel
 import com.writingapp.ui.wordline.WordlineViewModel
 import org.koin.core.module.dsl.viewModel
@@ -40,6 +41,7 @@ val viewModelModule = module {
     viewModel { RulebookViewModel(get(), get()) }
     viewModel { WordlineViewModel(get(), get()) }
     viewModel { SettingsViewModel(get()) }
+    viewModel { SearchViewModel(get()) }
 }
 
 val appModules = listOf(

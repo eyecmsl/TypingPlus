@@ -11,4 +11,5 @@ sealed class Screen(val route: String) {
     data object Rulebook : Screen("rulebook")
     data object Wordline : Screen("wordline")
     data object Settings : Screen("settings")
+    data object Search : Screen("search")
 }

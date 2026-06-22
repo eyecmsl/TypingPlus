@@ -3,13 +3,14 @@ package com.writingapp.data.local.db
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.writingapp.data.local.db.entities.DocumentEntity
+import com.writingapp.data.local.db.entities.DocumentFtsEntity
 import com.writingapp.data.local.db.entities.DocumentVersionEntity
 import com.writingapp.data.local.db.entities.RulebookEntity
 import com.writingapp.data.local.db.entities.WordlineEventEntity
 
 @Database(
-    entities = [DocumentEntity::class, DocumentVersionEntity::class, RulebookEntity::class, WordlineEventEntity::class],
-    version = 2,
+    entities = [DocumentEntity::class, DocumentFtsEntity::class, DocumentVersionEntity::class, RulebookEntity::class, WordlineEventEntity::class],
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

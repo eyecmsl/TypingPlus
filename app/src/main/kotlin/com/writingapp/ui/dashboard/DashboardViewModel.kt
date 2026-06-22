@@ -8,7 +8,7 @@ import com.writingapp.domain.usecase.DeleteDocumentUseCase
 import com.writingapp.domain.usecase.SaveDocumentUseCase
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -18,11 +18,11 @@ class DashboardViewModel(
     private val deleteDocumentUseCase: DeleteDocumentUseCase
 ) : ViewModel() {
 
-    val documents: StateFlow<List<Document>> = documentRepository.getAllDocuments()
+    private val _pinnedDocuments: StateFlow<List<Document>> = documentRepository.getPinnedDocuments()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val isLoading: StateFlow<Boolean> = documents.map { false }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val documents: StateFlow<List<Document>> = documentRepository.getAllDocuments()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun createNewDocument(title: String = "Untitled") {
         viewModelScope.launch {
@@ -34,6 +34,12 @@ class DashboardViewModel(
     fun deleteDocument(id: Long) {
         viewModelScope.launch {
             deleteDocumentUseCase(id)
+        }
+    }
+
+    fun togglePin(document: Document) {
+        viewModelScope.launch {
+            documentRepository.setPinned(document.id, !document.isPinned)
         }
     }
 }

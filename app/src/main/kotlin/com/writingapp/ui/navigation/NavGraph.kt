@@ -13,6 +13,7 @@ import com.writingapp.ui.assistant.AssistantScreen
 import com.writingapp.ui.dashboard.DashboardScreen
 import com.writingapp.ui.editor.EditorScreen
 import com.writingapp.ui.rulebook.RulebookScreen
+import com.writingapp.ui.search.SearchScreen
 import com.writingapp.ui.settings.SettingsScreen
 import com.writingapp.ui.wordline.WordlineScreen
 
@@ -33,6 +34,9 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onNewDocument = { docId ->
                     navController.navigate(Screen.Editor.createRoute(docId))
+                },
+                onSearchClick = {
+                    navController.navigate(Screen.Search.route)
                 },
                 onRulebookClick = { navController.navigate(Screen.Rulebook.route) },
                 onWordlineClick = { navController.navigate(Screen.Wordline.route) },
@@ -75,6 +79,15 @@ fun NavGraph(navController: NavHostController) {
 
         composable(Screen.Wordline.route) {
             WordlineScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.Search.route) {
+            SearchScreen(
+                onBack = { navController.popBackStack() },
+                onDocumentClick = { docId ->
+                    navController.navigate(Screen.Editor.createRoute(docId))
+                }
+            )
         }
 
         composable(
