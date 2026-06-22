@@ -50,15 +50,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.writingapp.ui.components.MarkdownDisplay
@@ -73,9 +70,6 @@ fun EditorScreen(
     viewModel: EditorViewModel = koinViewModel()
 ) {
     var isPreview by remember { mutableStateOf(false) }
-    val content by viewModel.content.collectAsState()
-    val wordCount by viewModel.wordCount.collectAsState()
-    val charCount by viewModel.charCount.collectAsState()
 
     LaunchedEffect(documentId) {
         viewModel.loadDocument(documentId)
@@ -126,7 +120,7 @@ fun EditorScreen(
         ) {
             if (isPreview) {
                 MarkdownDisplay(
-                    markdown = content,
+                    markdown = viewModel.textFieldValue.text,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(16.dp)
@@ -141,17 +135,9 @@ fun EditorScreen(
 
                 Spacer(Modifier.height(4.dp))
 
-                var textFieldValue by remember(content) {
-                    mutableStateOf(TextFieldValue(content))
-                }
-
                 OutlinedTextField(
-                    value = textFieldValue,
-                    onValueChange = { newValue ->
-                        textFieldValue = newValue
-                        viewModel.updateContent(newValue.text)
-                        viewModel.setTextFieldValue(newValue)
-                    },
+                    value = viewModel.textFieldValue,
+                    onValueChange = { viewModel.updateTextFieldValue(it) },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
@@ -165,8 +151,8 @@ fun EditorScreen(
                 )
 
                 StatusBar(
-                    wordCount = wordCount,
-                    charCount = charCount
+                    wordCount = viewModel.wordCount,
+                    charCount = viewModel.charCount
                 )
             }
         }
